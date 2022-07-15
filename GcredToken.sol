@@ -5,26 +5,31 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/draft-ERC20PermitUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+
+interface IGcredToken {
+	function mintForReward(address to, uint256 amount) external;
+}
 
 contract GcredToken is
 	Initializable,
 	ERC20Upgradeable,
 	ERC20BurnableUpgradeable,
 	PausableUpgradeable,
-	OwnableUpgradeable,
-	ERC20PermitUpgradeable,
-	ERC20VotesUpgradeable
+	OwnableUpgradeable
 {
+	address public admin;
+	address public MDwallet;
+	address public DAOwallet;
+    address public EXO;
+	using SafeMathUpgradeable for uint256;
 
-  address public admin;
-  address public MDwallet;
-  address public DAOwallet;
-	using SafeMathUpgradeable for uint;
+    modifier mintAddr() {
+        require(msg.sender == EXO);
+        _;
+    }
 
 	function pause() public onlyOwner {
 		_pause();
@@ -34,29 +39,29 @@ contract GcredToken is
 		_unpause();
 	}
 
-	function bridgeMint(address to, uint amount) public {
-    require(msg.sender == admin, 'only admin');
+	function bridgeMint(address to, uint256 amount) public {
+		require(msg.sender == admin, "only admin");
 		_mint(to, amount);
 	}
 
-  function bridgeBurn(address owner, uint amount) external {
-    require(msg.sender == admin, 'only admin');
-    _burn(owner, amount);
-  }
+	function bridgeBurn(address _owner, uint256 amount) external {
+		require(msg.sender == admin, "only admin");
+		_burn(_owner, amount);
+	}
 
-  function bridgeUpdateAdmin(address newAdmin) external {
-    require(msg.sender == admin, 'only admin');
-    admin = newAdmin;
-  }
+	function bridgeUpdateAdmin(address newAdmin) external {
+		require(msg.sender == admin, "only admin");
+		admin = newAdmin;
+	}
 
-  function mint(address to, uint amount) public onlyOwner {
+	function mint(address to, uint256 amount) public onlyOwner {
 		_mint(to, amount);
 	}
 
 	function _beforeTokenTransfer(
 		address from,
 		address to,
-		uint amount
+		uint256 amount
 	) internal override whenNotPaused {
 		super._beforeTokenTransfer(from, to, amount);
 	}
@@ -66,53 +71,60 @@ contract GcredToken is
 	function _afterTokenTransfer(
 		address from,
 		address to,
-		uint amount
-	) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) {
+		uint256 amount
+	) internal override(ERC20Upgradeable) {
 		super._afterTokenTransfer(from, to, amount);
 	}
 
-	function _mint(address to, uint amount)
+	function _mint(address to, uint256 amount)
 		internal
-		override(ERC20Upgradeable, ERC20VotesUpgradeable)
+		override(ERC20Upgradeable)
 	{
 		super._mint(to, amount);
 	}
 
-	function _burn(address account, uint amount)
+	function _burn(address account, uint256 amount)
 		internal
-		override(ERC20Upgradeable, ERC20VotesUpgradeable)
+		override(ERC20Upgradeable)
 	{
 		super._burn(account, amount);
 	}
 
-  function transfer(address to, uint256 amount) 
-    public 
-    virtual 
-    override 
-    returns (bool) 
-  {
-    address owner = _msgSender();
-    uint MDamount = amount.mul(2).div(100);
-    uint burnAmount = amount.mul(3).div(100);
-    uint transferAmount = amount.sub(MDamount).sub(burnAmount);
+	function changeEXO(address newAddr) 
+		public 
+		onlyOwner 
+	{
+		EXO = newAddr;
+	}
 
-    _transfer(owner, to, transferAmount);
-    _transfer(owner, MDwallet, MDamount);
-    _burn(owner, burnAmount);
-    return true;
-  }
+	function cutomTransfer(address to, uint256 amount, bool flag)
+		public
+		returns (bool)
+	{
+        require(flag, "Invalid Argument");
+		address _owner = _msgSender();
+		uint256 MDamount = amount.mul(2).div(100);
+		uint256 burnAmount = amount.mul(3).div(100);
+		uint256 transferAmount = amount.sub(MDamount).sub(burnAmount);
 
-  function buy_item(uint256 amount)
-    public
-    returns(bool)
-  {
-    address owner = _msgSender();
-    uint burnAmount = amount.mul(75).div(100);
-    uint MDamount = amount.mul(20).div(100);
-    uint DAOamount = amount.mul(5).div(100);
-    _transfer(owner, MDwallet, MDamount);
-    _transfer(owner, DAOwallet, DAOamount);
-    _burn(owner, burnAmount);
-    return true;
-  }
+		_transfer(_owner, to, transferAmount);
+		_transfer(_owner, MDwallet, MDamount);
+		_burn(_owner, burnAmount);
+		return true;
+	}
+
+	function buy_item(uint256 amount) public returns (bool) {
+		address _owner = _msgSender();
+		uint256 burnAmount = amount.mul(75).div(100);
+		uint256 MDamount = amount.mul(20).div(100);
+		uint256 DAOamount = amount.mul(5).div(100);
+		_transfer(_owner, MDwallet, MDamount);
+		_transfer(_owner, DAOwallet, DAOamount);
+		_burn(_owner, burnAmount);
+		return true;
+	}
+
+    function mintForReward(address to, uint256 amount) public mintAddr {
+        _mint(to, amount);
+    }
 }
